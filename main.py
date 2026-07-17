@@ -3,14 +3,12 @@ from pydantic import BaseModel
 from collections import Counter
 import re
 
-
 app = FastAPI()
-
 
 class TextInput(BaseModel):
     text: str
 
-@app.get("/health/")
+@app.get("/health")
 def health():
     return {"status": "ok", "version" : "1.0"}
 
@@ -26,3 +24,14 @@ def analyze(payload: TextInput):
         "sentence_count" : len(sentences),
         "top_5_words": top_words
     }
+
+@app.post("/summarize")
+def summarize(payload: TextInput):
+    sentences = [s.strip() for s in re.split(r'[.!?]',payload.text) if s.strip()]
+
+    if len(sentences) == 0:
+        return {"summary": ""}
+    if len(sentences) == 1:
+        return {"summary": sentences[0]}
+
+    return {"summary": f"{sentences[0]}.{sentences[-1]}."}
