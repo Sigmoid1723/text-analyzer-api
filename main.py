@@ -2,6 +2,12 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from collections import Counter
 import re
+from groq import Groq
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 app = FastAPI()
 
@@ -27,11 +33,11 @@ def analyze(payload: TextInput):
 
 @app.post("/summarize")
 def summarize(payload: TextInput):
-    sentences = [s.strip() for s in re.split(r'[.!?]',payload.text) if s.strip()]
-
-    if len(sentences) == 0:
-        return {"summary": ""}
-    if len(sentences) == 1:
-        return {"summary": sentences[0]}
-
-    return {"summary": f"{sentences[0]}.{sentences[-1]}."}
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[
+            {"role": "system","content":"Summarize the given text in one sentence."},
+            {"role": "user","content":payload.text}
+        ]
+    )
+    return {"summary": response.choices[0].message.content}
