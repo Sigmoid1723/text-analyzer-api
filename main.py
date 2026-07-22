@@ -33,11 +33,15 @@ def analyze(payload: TextInput):
 
 @app.post("/summarize")
 def summarize(payload: TextInput):
-    response = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[
-            {"role": "system","content":"Summarize the given text in one sentence."},
-            {"role": "user","content":payload.text}
-        ]
-    )
-    return {"summary": response.choices[0].message.content}
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system","content":"Summarize the given text in one sentence."},
+                {"role": "user","content":payload.text}
+            ],
+            
+        )
+        return {"summary": response.choices[0].message.content}
+    except Exception as e:
+        return {"error": str(e)}
