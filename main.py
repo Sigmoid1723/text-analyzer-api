@@ -2,14 +2,17 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from collections import Counter
 import re
-from groq import Groq
+from groq import Groq,APIError
 import os
 from dotenv import load_dotenv
+from prompt_loader import load_prompts
 
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 app = FastAPI()
+
+prompts = load_prompts()
 
 class TextInput(BaseModel):
     text: str
@@ -37,11 +40,12 @@ def summarize(payload: TextInput):
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system","content":"Summarize the given text in one sentence."},
+                {"role": "system","content": prompts["summarizer"]},
                 {"role": "user","content":payload.text}
             ],
-            
         )
         return {"summary": response.choices[0].message.content}
+    except APIError as e:
+        return {"API error occurred": str(e)}
     except Exception as e:
-        return {"error": str(e)}
+        return {"Unexpected error": str(e)}
