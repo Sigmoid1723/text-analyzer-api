@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI,HTTPException
 from pydantic import BaseModel
 from collections import Counter
 import re
@@ -6,6 +6,7 @@ from groq import Groq,APIError
 import os
 from dotenv import load_dotenv
 from prompt_loader import load_prompts
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -13,6 +14,18 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 app = FastAPI()
 
 prompts = load_prompts()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://127.0.0.1:8000",
+    ],
+    allow_methods=["GET","POST"],
+    allow_headers=["*"],
+)
 
 class TextInput(BaseModel):
     text: str
@@ -46,6 +59,28 @@ def summarize(payload: TextInput):
         )
         return {"summary": response.choices[0].message.content}
     except APIError as e:
-        return {"API error occurred": str(e)}
+        raise HTTPException(status_code=502, detail=f"Groq API error: {str(e)}")
     except Exception as e:
-        return {"Unexpected error": str(e)}
+       raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+class ChatInput(BaseModel):
+    messages: list[dict]
+
+   
+@app.post("/chat")
+def chat(payload: ChatInput):
+    try:
+        # prepend the system prompt from prompts.yaml
+        full_messages = [
+            {"role": "system", "content": prompts["chatbot"]}
+        ] + payload.messages
+        
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=full_messages,
+        )
+        return {"reply": response.choices[0].message.content}
+    except APIError as e:
+        raise HTTPException(status_code=502, detail=f"Groq API error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(stauts_code=500, detail=f"Unexpected erro: {str(e)}")
