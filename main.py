@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 from prompt_loader import load_prompts
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -51,7 +52,7 @@ def analyze(payload: TextInput):
 def summarize(payload: TextInput):
     try:
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             messages=[
                 {"role": "system","content": prompts["summarizer"]},
                 {"role": "user","content":payload.text}
@@ -66,20 +67,29 @@ def summarize(payload: TextInput):
 class ChatInput(BaseModel):
     messages: list[dict]
 
+def generate_stream(messages):
+    full_message = [
+        {"role": "system", "content": prompts["chatbot"]}
+    ] + messages
+
+    stream = client.chat.completions.create(
+        model="openai/gpt-oss-20b",
+        messages=full_message,
+        stream=True
+    )
+
+    for chunk in stream:
+        content = chunk.choices[0].delta.content
+        if content:
+            yield content
    
 @app.post("/chat")
 def chat(payload: ChatInput):
     try:
-        # prepend the system prompt from prompts.yaml
-        full_messages = [
-            {"role": "system", "content": prompts["chatbot"]}
-        ] + payload.messages
-        
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=full_messages,
-        )
-        return {"reply": response.choices[0].message.content}
+       return StreamingResponse(
+           generate_stream(payload.messages),
+           media_type="text/plain"
+       )
     except APIError as e:
         raise HTTPException(status_code=502, detail=f"Groq API error: {str(e)}")
     except Exception as e:
